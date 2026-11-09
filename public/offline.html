@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0d0d0d" />
+    <title>Offline · Property Manager</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        background: #0d0d0d;
+        color: rgb(255 255 255 / 0.9);
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      main {
+        max-width: 22rem;
+      }
+      small {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgb(255 255 255 / 0.5);
+      }
+      h1 {
+        font:
+          700 30px/1.15 Georgia,
+          serif;
+        margin: 8px 0 12px;
+      }
+      p {
+        color: rgb(255 255 255 / 0.6);
+        font-size: 14px;
+      }
+      button,
+      a {
+        display: inline-block;
+        margin: 20px 16px 0 0;
+        font: 700 13px system-ui;
+        color: #0d0d0d;
+        background: #e5fe40;
+        border: 0;
+        padding: 12px 20px;
+        box-shadow: 3px 3px 0 #727f20;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      a {
+        background: transparent;
+        color: #fff;
+        box-shadow: none;
+        border-bottom: 1px solid;
+        padding: 0 0 1px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <small>Offline</small>
+      <h1>This page isn't saved on this device yet<span style="color: #e5fe40">.</span></h1>
+      <p>
+        Pages you've opened before still work offline, and anything you record is queued and synced
+        when you're back online.
+      </p>
+      <button onclick="location.reload()">Try again</button>
+      <a href="/">Go to overview</a>
+    </main>
+  </body>
+</html>

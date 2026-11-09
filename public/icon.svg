@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0d0d0d"/>
+  <!-- NeoPop plunk: house block with skewed right + bottom edges -->
+  <polygon points="372,236 396,260 396,412 372,388" fill="#a0b22d"/>
+  <polygon points="140,388 372,388 396,412 164,412" fill="#727f20"/>
+  <polygon points="140,236 256,124 372,236 372,388 140,388" fill="#e5fe40"/>
+  <rect x="222" y="292" width="68" height="96" fill="#0d0d0d"/>
+</svg>
