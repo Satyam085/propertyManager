@@ -13,17 +13,20 @@ import {
 } from "#/components/pop";
 import { getPickers } from "#/fns/read.functions";
 import {
-  CHARGE_TYPES,
   EXPENSE_CATEGORIES,
+  METHOD_LABEL,
   PAYMENT_METHODS,
   PAYMENT_TYPES,
+  cap,
   fmt,
+  monthLabel,
+  roomNo,
   thisMonth,
   today,
 } from "#/lib/money";
 import { submit, useOnline, type OutboxKind } from "#/lib/outbox";
 
-const TABS = ["payment", "charge", "reading", "expense"] as const;
+const TABS = ["payment", "electricity", "charge", "expense"] as const;
 
 // 'data-only': the loader runs on the server (pickers come with the first byte), but the form
 // renders on the client. It reads navigator.onLine and the local outbox, which only exist there.
@@ -39,6 +42,7 @@ export const Route = createFileRoute("/record")({
 });
 
 type Pick = Awaited<ReturnType<typeof getPickers>>[number];
+type Method = (typeof PAYMENT_METHODS)[number];
 
 function RecordPage() {
   const rows = Route.useLoaderData();
@@ -51,7 +55,7 @@ function RecordPage() {
         kicker={online ? "New entry" : "Offline: entries will sync later"}
         title="Record"
       />
-      <div className="mb-8 grid grid-cols-4 border border-line" role="tablist">
+      <div className="mb-8 grid grid-cols-2 border border-line sm:grid-cols-4" role="tablist">
         {TABS.map((t) => (
           <button
             key={t}
@@ -60,13 +64,13 @@ function RecordPage() {
             onClick={() => navigate({ search: (s) => ({ ...s, tab: t }), replace: true })}
             className="caps py-3 text-white/60 aria-selected:bg-white aria-selected:text-ink"
           >
-            {t}
+            {t === "electricity" ? "⚡ Electricity" : t}
           </button>
         ))}
       </div>
       {tab === "payment" && <PaymentForm rows={rows} tenantId={tenantId} />}
+      {tab === "electricity" && <ElectricityForm rows={rows} tenantId={tenantId} />}
       {tab === "charge" && <ChargeForm rows={rows} tenantId={tenantId} />}
-      {tab === "reading" && <ReadingForm rows={rows} />}
       {tab === "expense" && <ExpenseForm rows={rows} />}
     </>
   );
@@ -134,6 +138,8 @@ function EntryForm<K extends OutboxKind>({
 }
 
 const tenantsOf = (rows: Pick[]) => rows.filter((r) => r.tenantId);
+const tenantName = (rows: Pick[], id: string) =>
+  tenantsOf(rows).find((r) => r.tenantId === id)?.tenantName ?? "tenant";
 
 function TenantSelect({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
   return (
@@ -143,16 +149,22 @@ function TenantSelect({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
       </option>
       {tenantsOf(rows).map((r) => (
         <option key={r.tenantId} value={r.tenantId!}>
-          {r.tenantName} · {r.propertyName} {r.unitName}
+          {roomNo(r.unitName!, r.tenantLabel)} · {r.tenantName} · {r.propertyName}
         </option>
       ))}
     </Select>
   );
 }
 
+const PAYMENT_FOR: Record<(typeof PAYMENT_TYPES)[number], string> = {
+  rent: "Rent / maintenance / other charges",
+  electricity: "Electricity bill (not income)",
+  deposit: "Security deposit received",
+  refund: "Deposit refunded to tenant",
+};
+
 function PaymentForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
-  const name = (id: string) =>
-    tenantsOf(rows).find((r) => r.tenantId === id)?.tenantName ?? "tenant";
+  const [type, setType] = useState<(typeof PAYMENT_TYPES)[number]>("rent");
   return (
     <EntryForm
       kind="recordPayment"
@@ -163,14 +175,26 @@ function PaymentForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
           tenantId: v.str("tenantId"),
           paidOn: v.str("paidOn"),
           amount: v.paise("amount"),
-          type: v.str("type") as (typeof PAYMENT_TYPES)[number],
-          method: v.str("method") as (typeof PAYMENT_METHODS)[number],
+          type,
+          method: v.str("method") as Method,
           note: v.str("note"),
         };
-        return { data, label: `${fmt(data.amount)} from ${name(data.tenantId)}` };
+        return { data, label: `${fmt(data.amount)} from ${tenantName(rows, data.tenantId)}` };
       }}
     >
       <TenantSelect rows={rows} tenantId={tenantId} />
+      <Select
+        label="For"
+        name="type"
+        value={type}
+        onChange={(e) => setType(e.currentTarget.value as typeof type)}
+      >
+        {PAYMENT_TYPES.map((t) => (
+          <option key={t} value={t}>
+            {PAYMENT_FOR[t]}
+          </option>
+        ))}
+      </Select>
       <Field
         label="Amount (₹)"
         name="amount"
@@ -183,23 +207,84 @@ function PaymentForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
       />
       <div className="grid grid-cols-2 gap-6">
         <Field label="Paid on" name="paidOn" type="date" defaultValue={today()} required />
-        <Select label="Method" name="method" defaultValue="upi">
-          {PAYMENT_METHODS.map((m) => (
+        <Select label="Method" name="method" defaultValue="upi" key={type}>
+          {PAYMENT_METHODS.filter((m) => m !== "utility" || type === "electricity").map((m) => (
             <option key={m} value={m}>
-              {m.toUpperCase()}
+              {METHOD_LABEL[m]}
             </option>
           ))}
         </Select>
       </div>
-      <Select label="For" name="type" defaultValue="rent">
-        <option value="rent">Rent / bills</option>
-        <option value="deposit">Security deposit received</option>
-        <option value="refund">Deposit refunded to tenant</option>
-      </Select>
       <Field label="Note" name="note" placeholder="Optional, e.g. UPI ref" maxLength={300} />
     </EntryForm>
   );
 }
+
+/** Electricity bill, entered by amount when it arrives. Optionally settled in the same step. */
+function ElectricityForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
+  const [paid, setPaid] = useState<"" | Method>("");
+  return (
+    <EntryForm
+      kind="addElectricityBill"
+      cta="Save electricity bill"
+      build={(v) => {
+        const data = {
+          id: crypto.randomUUID(),
+          tenantId: v.str("tenantId"),
+          month: v.str("month"),
+          amount: v.paise("amount"),
+          note: v.str("note"),
+          payment: paid ? { id: crypto.randomUUID(), paidOn: v.str("paidOn"), method: paid } : null,
+        };
+        return {
+          data,
+          label: `${monthLabel(data.month)} electricity ${fmt(data.amount)} for ${tenantName(rows, data.tenantId)}`,
+        };
+      }}
+    >
+      <TenantSelect rows={rows} tenantId={tenantId} />
+      <div className="grid grid-cols-2 gap-6">
+        <Field label="Bill month" name="month" type="month" defaultValue={thisMonth()} required />
+        <Field
+          label="Bill amount (₹)"
+          name="amount"
+          type="number"
+          inputMode="decimal"
+          min="0.01"
+          step="0.01"
+          required
+          big
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-6">
+        <Select
+          label="Paid?"
+          name="paid"
+          value={paid}
+          onChange={(e) => setPaid(e.currentTarget.value as typeof paid)}
+        >
+          <option value="">Not yet</option>
+          <option value="utility">Tenant paid utility directly</option>
+          {PAYMENT_METHODS.filter((m) => m !== "utility").map((m) => (
+            <option key={m} value={m}>
+              Paid to me · {METHOD_LABEL[m]}
+            </option>
+          ))}
+        </Select>
+        {paid && (
+          <Field label="Paid on" name="paidOn" type="date" defaultValue={today()} required />
+        )}
+      </div>
+      <Field label="Note" name="note" placeholder="Optional, e.g. consumer no." maxLength={300} />
+      <p className="-mt-2 text-xs text-white/40">
+        Electricity is tracked as its own balance and is never counted as income, whether the tenant
+        pays the utility directly or pays it through you.
+      </p>
+    </EntryForm>
+  );
+}
+
+const CHARGE_KINDS = ["other", "maintenance", "rent"] as const;
 
 function ChargeForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
   return (
@@ -211,7 +296,7 @@ function ChargeForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
           id: crypto.randomUUID(),
           tenantId: v.str("tenantId"),
           month: v.str("month"),
-          type: v.str("type") as (typeof CHARGE_TYPES)[number],
+          type: v.str("type") as (typeof CHARGE_KINDS)[number],
           amount: v.paise("amount"),
           note: v.str("note"),
         };
@@ -220,10 +305,10 @@ function ChargeForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
     >
       <TenantSelect rows={rows} tenantId={tenantId} />
       <div className="grid grid-cols-2 gap-6">
-        <Select label="Type" name="type" defaultValue="electricity">
-          {CHARGE_TYPES.map((t) => (
+        <Select label="Type" name="type" defaultValue="other">
+          {CHARGE_KINDS.map((t) => (
             <option key={t} value={t}>
-              {t}
+              {cap(t)}
             </option>
           ))}
         </Select>
@@ -238,79 +323,18 @@ function ChargeForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
         required
         big
       />
-      <Field
-        label="Note"
-        name="note"
-        placeholder="e.g. Oct electricity bill share"
-        maxLength={300}
-      />
+      <Field label="Note" name="note" placeholder="e.g. Repair passed on" maxLength={300} />
       <p className="-mt-2 text-xs text-white/40">
-        Rent and maintenance are added automatically each month. Use this for bills, repairs passed
-        on, or a prorated first month (negative amount).
+        Rent and maintenance are added automatically each month. Use this for one-off charges or a
+        prorated first month (negative amount). Electricity bills go in the ⚡ tab.
       </p>
-    </EntryForm>
-  );
-}
-
-function ReadingForm({ rows }: { rows: Pick[] }) {
-  const units = rows.filter((r) => r.unitId);
-  const [unitId, setUnitId] = useState("");
-  const unit = units.find((u) => u.unitId === unitId);
-  return (
-    <EntryForm
-      kind="addReading"
-      cta="Save reading"
-      build={(v) => {
-        const data = {
-          id: crypto.randomUUID(),
-          unitId: v.str("unitId"),
-          readOn: v.str("readOn"),
-          value: v.int("value"),
-        };
-        return { data, label: `meter ${data.value} kWh` };
-      }}
-    >
-      <Select
-        label="Unit"
-        name="unitId"
-        required
-        value={unitId}
-        onChange={(e) => setUnitId(e.currentTarget.value)}
-      >
-        <option value="" disabled>
-          Choose a unit
-        </option>
-        {units.map((u) => (
-          <option key={u.unitId} value={u.unitId!}>
-            {u.propertyName} · {u.unitName}
-            {u.tenantName ? ` (${u.tenantName})` : " (vacant)"}
-          </option>
-        ))}
-      </Select>
-      <Field
-        label="Meter reading (kWh)"
-        name="value"
-        type="number"
-        inputMode="numeric"
-        min={unit?.lastReading ?? 0}
-        step="1"
-        required
-        big
-      />
-      <p className="-mt-3 text-xs text-white/50">
-        {unit
-          ? unit.lastReading == null
-            ? "First reading for this unit: it is the baseline, no charge."
-            : `Last reading ${unit.lastReading}. The difference × the tenant's rate becomes an electricity charge.`
-          : "Pick a unit to see its last reading."}
-      </p>
-      <Field label="Read on" name="readOn" type="date" defaultValue={today()} required />
     </EntryForm>
   );
 }
 
 function ExpenseForm({ rows }: { rows: Pick[] }) {
   const props = [...new Map(rows.map((r) => [r.propertyId, r.propertyName])).entries()];
+  const rooms = [...new Map(rows.filter((r) => r.unitId).map((r) => [r.unitId, r])).values()];
   const [propertyId, setPropertyId] = useState("");
   return (
     <EntryForm
@@ -346,10 +370,10 @@ function ExpenseForm({ rows }: { rows: Pick[] }) {
         ))}
       </Select>
       <div className="grid grid-cols-2 gap-6">
-        <Select label="Unit" name="unitId" defaultValue="">
+        <Select label="Room no." name="unitId" defaultValue="" key={propertyId}>
           <option value="">Whole property</option>
-          {rows
-            .filter((r) => r.propertyId === propertyId && r.unitId)
+          {rooms
+            .filter((r) => r.propertyId === propertyId)
             .map((r) => (
               <option key={r.unitId} value={r.unitId!}>
                 {r.unitName}
@@ -359,7 +383,7 @@ function ExpenseForm({ rows }: { rows: Pick[] }) {
         <Select label="Category" name="category" defaultValue="maintenance">
           {EXPENSE_CATEGORIES.map((c) => (
             <option key={c} value={c}>
-              {c}
+              {cap(c)}
             </option>
           ))}
         </Select>

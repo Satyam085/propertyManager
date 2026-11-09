@@ -1,6 +1,7 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import {
+  RoomNo,
   buttonStyle,
   Empty,
   formValues,
@@ -80,20 +81,19 @@ function Tenants() {
                 params={{ tenantId: t.id }}
                 className="flex items-center gap-3 px-4 py-3 hover:bg-raised"
               >
+                <RoomNo room={t.room} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-semibold">{t.name}</span>
-                    {search.status === "active" && (
-                      <Tag tone={STATUS_TAG[t.status]}>{t.status}</Tag>
-                    )}
-                  </div>
+                  <div className="truncate font-semibold">{t.name}</div>
                   <div className="truncate text-xs text-white/50">
-                    {t.propertyName} · {t.unitName} · {t.phone || "no phone"}
+                    {t.propertyName} · {t.phone || "no phone"}
                   </div>
                 </div>
-                <div className="text-right">
-                  <Money paise={t.rent} className="font-bold" />
-                  <div className="caps text-white/40">/ month</div>
+                <div className="flex flex-col items-end gap-1.5">
+                  <span className="font-bold">
+                    <Money paise={t.rent} />
+                    <span className="text-xs font-normal text-white/40">/mo</span>
+                  </span>
+                  {search.status === "active" && <Tag tone={STATUS_TAG[t.status]}>{t.status}</Tag>}
                 </div>
               </Link>
             </li>

@@ -49,9 +49,6 @@ export function chargeMonths(moveIn: string, moveOut: string | null, upTo: strin
   return out;
 }
 
-export const electricityAmount = (prev: number, cur: number, ratePaise: number) =>
-  (cur - prev) * ratePaise;
-
 /** Rent is overdue if anything older than this month is unpaid, or this month's due day passed. */
 export function isOverdue(
   balance: number,
@@ -65,8 +62,17 @@ export function isOverdue(
 
 // ---------- domain enums (shared by the DB schema, validators and UI) ----------
 export const CHARGE_TYPES = ["rent", "maintenance", "electricity", "other"] as const;
-export const PAYMENT_TYPES = ["rent", "deposit", "refund"] as const;
-export const PAYMENT_METHODS = ["upi", "cash", "bank", "cheque"] as const;
+// "electricity" payments settle electricity bills: pass-through money, never counted as income
+export const PAYMENT_TYPES = ["rent", "electricity", "deposit", "refund"] as const;
+// "utility" = the tenant paid the electricity company directly
+export const PAYMENT_METHODS = ["upi", "cash", "bank", "cheque", "utility"] as const;
+export const METHOD_LABEL: Record<(typeof PAYMENT_METHODS)[number], string> = {
+  upi: "UPI",
+  cash: "Cash",
+  bank: "Bank transfer",
+  cheque: "Cheque",
+  utility: "Paid to utility directly",
+};
 export const EXPENSE_CATEGORIES = [
   "maintenance",
   "repair",
@@ -75,7 +81,12 @@ export const EXPENSE_CATEGORIES = [
   "society",
   "misc",
 ] as const;
-export const FILE_OWNERS = ["property", "tenant", "expense", "payment", "reading"] as const;
+export const FILE_OWNERS = ["property", "tenant", "expense", "payment"] as const;
 
 export const ordinal = (n: number) =>
   `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+
+/** Room no. as shown everywhere: room "2325" + suffix "A" → "2325 A". */
+export const roomNo = (room: string, label?: string | null) => (label ? `${room} ${label}` : room);
+
+export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

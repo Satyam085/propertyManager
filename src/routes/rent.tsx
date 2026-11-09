@@ -1,8 +1,8 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
-import { Empty, Money, PageHeader, STATUS_TAG, Select, Stat, Tag } from "#/components/pop";
+import { Empty, Money, PageHeader, RoomNo, STATUS_TAG, Select, Stat, Tag } from "#/components/pop";
 import { getRentSheet, listProperties, zMonth } from "#/fns/read.functions";
-import { addMonths, monthLabel, thisMonth } from "#/lib/money";
+import { addMonths, fmt, monthLabel, thisMonth } from "#/lib/money";
 
 // Bad or missing params fall back to defaults instead of erroring: /rent?month=bad → this month.
 const searchSchema = z.object({
@@ -87,13 +87,26 @@ function RentSheet() {
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-3">
-        <Stat label="Billed" value={<Money paise={sheet.totals.charged} />} />
+      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat
+          label="Billed"
+          value={<Money paise={sheet.totals.charged} />}
+          hint="rent + maint. + other"
+        />
         <Stat label="Paid" value={<Money paise={sheet.totals.paid} />} tone="ok" />
         <Stat
           label="Outstanding"
           value={<Money paise={sheet.totals.outstanding} />}
           tone={sheet.totals.outstanding ? "bad" : undefined}
+        />
+        <Stat
+          label="⚡ Electricity"
+          value={<Money paise={sheet.totals.elecBilled} />}
+          hint={
+            sheet.totals.elecDue
+              ? `${fmt(sheet.totals.elecDue)} unpaid · not income`
+              : "billed · not income"
+          }
         />
       </div>
 
@@ -104,26 +117,41 @@ function RentSheet() {
           <ul className="divide-y divide-line border border-line bg-surface">
             {sheet.rows.map((t) => (
               <li key={t.id} className="flex items-center gap-3 px-4 py-3">
+                <RoomNo room={t.room} />
                 <Link
                   to="/tenants/$tenantId"
                   params={{ tenantId: t.id }}
                   className="min-w-0 flex-1"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-semibold">{t.name}</span>
-                    <Tag tone={STATUS_TAG[t.status]}>{t.status}</Tag>
-                  </div>
+                  <div className="truncate font-semibold">{t.name}</div>
                   <div className="truncate text-xs text-white/50">
-                    {t.propertyName} · {t.unitName} · billed <Money paise={t.monthCharged} /> · paid{" "}
+                    {t.propertyName} · billed <Money paise={t.monthCharged} /> · paid{" "}
                     <Money paise={t.monthPaid} />
                   </div>
+                  {(t.monthElec > 0 || t.elecDue > 0) && (
+                    <div className="truncate text-xs text-white/50">
+                      ⚡{" "}
+                      {t.monthElec > 0 && (
+                        <>
+                          bill <Money paise={t.monthElec} /> ·{" "}
+                        </>
+                      )}
+                      {t.elecDue > 0 ? (
+                        <span className="text-warn">
+                          <Money paise={t.elecDue} /> unpaid
+                        </span>
+                      ) : (
+                        "paid"
+                      )}
+                    </div>
+                  )}
                 </Link>
-                <div className="text-right">
+                <div className="flex flex-col items-end gap-1.5">
                   <Money
                     paise={Math.max(0, t.balance)}
                     className={t.balance > 0 ? "font-bold text-pink" : "font-bold text-white/40"}
                   />
-                  <div className="caps text-white/40">balance</div>
+                  <Tag tone={STATUS_TAG[t.status]}>{t.status}</Tag>
                 </div>
                 {t.balance > 0 && (
                   <Link

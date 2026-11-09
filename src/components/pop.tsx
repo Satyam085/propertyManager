@@ -1,6 +1,12 @@
 // NeoPop-inspired UI kit: sharp corners, 3px skewed "plunk" edges, caps labels, dark surfaces.
 import { useRouter } from "@tanstack/react-router";
-import { useState, type ComponentProps, type CSSProperties, type ReactNode } from "react";
+import {
+  useState,
+  useSyncExternalStore,
+  type ComponentProps,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { fmt, toPaise } from "#/lib/money";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
@@ -55,8 +61,27 @@ export function Button({
   style,
   ...props
 }: ComponentProps<"button"> & ButtonLook) {
-  return <button {...props} {...buttonStyle({ tone, size, flat, className, style })} />;
+  // Disabled until hydrated: before JS loads, a submit would fall back to a native GET and put
+  // the form's fields (phone numbers, notes) into the URL. A disabled default button also
+  // blocks Enter-to-submit.
+  const hydrated = useHydrated();
+  return (
+    <button
+      {...props}
+      disabled={props.disabled || !hydrated}
+      {...buttonStyle({ tone, size, flat, className, style })}
+    />
+  );
 }
+
+const noSubscribe = () => () => {};
+/** false during SSR and the hydration pass, true once React owns the page. */
+export const useHydrated = () =>
+  useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
 
 /** Link-style action: text with an underline, NeoPop "link" kind. */
 export function TextButton({ className, ...props }: ComponentProps<"button">) {
@@ -115,6 +140,19 @@ export const Tag = ({ tone = "mute", children }: { tone?: TagTone; children: Rea
 
 export const STATUS_TAG = { paid: "ok", due: "warn", overdue: "bad" } as const;
 
+/** Room no. as its own field, e.g. "2325 A" (room + tenant suffix). */
+export const RoomNo = ({ room, className }: { room: string; className?: string }) => (
+  <span
+    className={cx(
+      "inline-flex min-w-20 shrink-0 flex-col items-center justify-center border border-white/25 bg-raised px-2 py-1.5 leading-none",
+      className,
+    )}
+  >
+    <span className="caps text-[8px] text-white/40">Room</span>
+    <span className="mt-1 text-sm font-extrabold whitespace-nowrap tabular-nums">{room}</span>
+  </span>
+);
+
 export function Field({
   label,
   big,
@@ -144,14 +182,7 @@ export function Select({
   return (
     <label className={cx("block", className)}>
       <span className="caps mb-2.5 block text-white/50">{label}</span>
-      <select
-        {...props}
-        className="w-full appearance-none border-0 border-b border-white/20 bg-transparent bg-[length:10px] bg-[right_2px_center] bg-no-repeat pb-1.5 text-base font-semibold text-white/90 outline-none focus:border-white"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffffff80'/%3E%3C/svg%3E\")",
-        }}
-      >
+      <select {...props} className="pop-select">
         {children}
       </select>
     </label>

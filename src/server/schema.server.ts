@@ -54,14 +54,16 @@ export const tenants = sqliteTable(
     rent: integer("rent").notNull(),
     deposit: integer("deposit").notNull().default(0),
     maintenance: integer("maintenance").notNull().default(0),
-    elecRate: integer("elec_rate").notNull().default(0), // paise per kWh
     dueDay: integer("due_day").notNull().default(5),
+    // suffix inside the room: room "2325" + label "A" = "2325 A". Empty = the whole room.
+    label: text("label").notNull().default(""),
     notes: text("notes").notNull().default(""),
     createdAt: createdAt(),
   },
   (t) => [
-    uniqueIndex("tenants_one_active_per_unit")
-      .on(t.unitId)
+    // a room can hold several active tenants, but each needs its own suffix
+    uniqueIndex("tenants_active_room_label")
+      .on(t.unitId, t.label)
       .where(sql`${t.moveOut} IS NULL`),
     check("tenants_due_day", sql`${t.dueDay} BETWEEN 1 AND 28`),
   ],
@@ -109,21 +111,6 @@ export const payments = sqliteTable(
     index("payments_paid_on").on(t.paidOn),
     check("payments_positive", sql`${t.amount} > 0`),
   ],
-);
-
-export const readings = sqliteTable(
-  "readings",
-  {
-    id: id(),
-    unitId: text("unit_id")
-      .notNull()
-      .references(() => units.id, { onDelete: "cascade" }),
-    readOn: text("read_on").notNull(),
-    value: integer("value").notNull(), // kWh meter reading
-    chargeId: text("charge_id"),
-    createdAt: createdAt(),
-  },
-  (t) => [index("readings_unit").on(t.unitId, t.readOn)],
 );
 
 export const expenses = sqliteTable(

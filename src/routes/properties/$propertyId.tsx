@@ -9,6 +9,7 @@ import {
   Field,
   Money,
   PageHeader,
+  RoomNo,
   STATUS_TAG,
   Section,
   Tag,
@@ -95,52 +96,67 @@ function PropertyPage() {
         </Card>
       )}
 
-      <Section title={`Units · ${units.filter((u) => u.tenant).length}/${units.length} let`}>
+      <Section
+        title={`Rooms · ${units.filter((u) => u.tenants.length).length}/${units.length} let`}
+      >
         {units.length === 0 ? (
-          <Empty>No units yet. Add the flats, rooms or shops you rent out.</Empty>
+          <Empty>No rooms yet. Add the rooms, flats, houses or shops you rent out.</Empty>
         ) : (
           <ul className="divide-y divide-line border border-line bg-surface">
             {units.map((u) => (
-              <li key={u.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold">{u.name}</div>
-                  {u.tenant ? (
-                    <Link
-                      to="/tenants/$tenantId"
-                      params={{ tenantId: u.tenant.id }}
-                      className="text-sm text-white/60 hover:text-white"
-                    >
-                      {u.tenant.name} · <Money paise={u.tenant.rent} />
-                      /mo
-                    </Link>
-                  ) : (
-                    <div className="text-sm text-white/40">
-                      Vacant · asking <Money paise={u.rent} />
-                    </div>
-                  )}
-                </div>
-                {u.tenant ? (
-                  <Tag tone={STATUS_TAG[u.tenant.status]}>{u.tenant.status}</Tag>
-                ) : (
-                  <div className="flex items-center gap-4">
-                    <Link
-                      to="/tenants/new"
-                      search={{ unitId: u.id }}
-                      className="caps border border-white px-2.5 py-2 hover:bg-white hover:text-ink"
-                    >
-                      Add tenant
-                    </Link>
+              <li key={u.id} className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <RoomNo room={u.name} />
+                  <div className="min-w-0 flex-1 text-sm text-white/50">
+                    {u.tenants.length === 0 ? (
+                      <>
+                        Vacant · asking <Money paise={u.rent} />
+                      </>
+                    ) : (
+                      `${u.tenants.length} tenant${u.tenants.length > 1 ? "s" : ""}`
+                    )}
+                  </div>
+                  <Link
+                    to="/tenants/new"
+                    search={{ unitId: u.id }}
+                    className="caps border border-white px-2.5 py-2 hover:bg-white hover:text-ink"
+                  >
+                    ＋ Tenant
+                  </Link>
+                  {u.tenants.length === 0 && (
                     <TextButton
                       disabled={!online}
                       className="text-[11px]"
                       onClick={() =>
-                        confirm(`Delete unit ${u.name}?`) &&
+                        confirm(`Delete room ${u.name}?`) &&
                         run(() => deleteUnit({ data: { id: u.id } }))
                       }
                     >
                       Delete
                     </TextButton>
-                  </div>
+                  )}
+                </div>
+                {u.tenants.length > 0 && (
+                  <ul className="mt-2 space-y-1 border-t border-line pt-2">
+                    {u.tenants.map((t) => (
+                      <li key={t.id}>
+                        <Link
+                          to="/tenants/$tenantId"
+                          params={{ tenantId: t.id }}
+                          className="flex items-center gap-2 text-sm hover:text-white"
+                        >
+                          <span className="w-20 shrink-0 font-bold whitespace-nowrap tabular-nums">
+                            {t.room}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-white/70">
+                            {t.name} · <Money paise={t.rent} />
+                            /mo
+                          </span>
+                          <Tag tone={STATUS_TAG[t.status]}>{t.status}</Tag>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </li>
             ))}
@@ -209,7 +225,7 @@ function AddUnit({ propertyId }: { propertyId: string }) {
         if (ok) form.reset();
       }}
     >
-      <Field label="New unit" name="name" required maxLength={60} placeholder="Flat 101" />
+      <Field label="New room no." name="name" required maxLength={60} placeholder="2325" />
       <Field
         label="Asking rent (₹)"
         name="rent"
@@ -220,7 +236,7 @@ function AddUnit({ propertyId }: { propertyId: string }) {
         placeholder="15000"
       />
       <Button tone="dark" size="sm" disabled={busy || !online}>
-        ＋ Unit
+        ＋ Room
       </Button>
       <div className="col-span-3">
         <ErrorText error={error} />

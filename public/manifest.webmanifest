@@ -22,8 +22,8 @@
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Meter reading",
-      "url": "/record?tab=reading",
+      "name": "Electricity bill",
+      "url": "/record?tab=electricity",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {

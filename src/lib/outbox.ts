@@ -1,10 +1,10 @@
-// Offline write queue (browser only). Payments, charges, expenses and readings carry a
+// Offline write queue (browser only). Payments, charges, electricity bills and expenses carry a
 // client-generated id, so replaying an entry the server already has is a no-op.
 // ponytail: localStorage, not IndexedDB. Entries are small JSON; photos can't be queued.
 import { useSyncExternalStore } from "react";
-import { addCharge, addExpense, addReading, recordPayment } from "#/fns/write.functions";
+import { addCharge, addElectricityBill, addExpense, recordPayment } from "#/fns/write.functions";
 
-const FNS = { recordPayment, addCharge, addExpense, addReading } as const;
+const FNS = { recordPayment, addCharge, addExpense, addElectricityBill } as const;
 export type OutboxKind = keyof typeof FNS;
 type Input<K extends OutboxKind> = Parameters<(typeof FNS)[K]>[0]["data"];
 

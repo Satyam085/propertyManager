@@ -1,8 +1,8 @@
 import { Await, Link, createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Card, Empty, Money, PageHeader, Section, Stat, Tag } from "#/components/pop";
+import { Card, Empty, Money, PageHeader, RoomNo, Section, Stat, Tag } from "#/components/pop";
 import { getEndingSoon, getKpis, getOverdue, getRecentPayments } from "#/fns/read.functions";
-import { monthLabel, ordinal, today } from "#/lib/money";
+import { METHOD_LABEL, fmt, monthLabel, ordinal, roomNo, today } from "#/lib/money";
 
 // Full SSR + streaming: KPIs are awaited (one cheap round of aggregates) so the first byte has
 // the numbers; the lists are returned as un-awaited promises and stream in via <Await>.
@@ -54,7 +54,9 @@ function Dashboard() {
           label="Outstanding"
           value={<Money paise={kpis.outstanding} />}
           tone={kpis.outstanding > 0 ? "bad" : undefined}
-          hint="all months"
+          hint={
+            kpis.elecDue ? `rent · ${fmt(kpis.elecDue)} electricity unpaid` : "rent, all months"
+          }
         />
         <Stat label="Expenses" value={<Money paise={kpis.expenses} />} hint="this month" />
         <Stat
@@ -63,7 +65,11 @@ function Dashboard() {
           tone={kpis.net >= 0 ? "ok" : "bad"}
           hint="collected − expenses"
         />
-        <Stat label="Occupancy" value={`${kpis.occupied}/${kpis.units}`} hint="units let" />
+        <Stat
+          label="Occupancy"
+          value={`${kpis.occupied}/${kpis.units}`}
+          hint={`rooms let · ${kpis.tenants} tenant${kpis.tenants === 1 ? "" : "s"}`}
+        />
       </div>
 
       <Section
@@ -88,8 +94,9 @@ function Dashboard() {
                   <Row
                     key={t.id}
                     to={t.id}
+                    room={t.room}
                     title={t.name}
-                    sub={`${t.propertyName} · ${t.unitName} · due on the ${ordinal(t.dueDay)}`}
+                    sub={`${t.propertyName} · due on the ${ordinal(t.dueDay)}`}
                   >
                     <Money paise={t.balance} className="font-bold text-pink" />
                   </Row>
@@ -112,8 +119,9 @@ function Dashboard() {
                     <Row
                       key={t.id}
                       to={t.id}
+                      room={roomNo(t.unitName, t.label)}
                       title={t.name}
-                      sub={`${t.propertyName} · ${t.unitName}`}
+                      sub={t.propertyName}
                     >
                       <Tag tone={t.agreementEnd! < today() ? "bad" : "warn"}>{t.agreementEnd}</Tag>
                     </Row>
@@ -135,8 +143,9 @@ function Dashboard() {
                     <Row
                       key={p.id}
                       to={p.tenantId}
+                      room={roomNo(p.unitName, p.label)}
                       title={p.tenantName}
-                      sub={`${p.paidOn} · ${p.method}${p.type === "rent" ? "" : ` · ${p.type}`}`}
+                      sub={`${p.paidOn} · ${METHOD_LABEL[p.method]}${p.type === "rent" ? "" : p.type === "electricity" ? " · ⚡ electricity, not income" : ` · ${p.type}`}`}
                     >
                       <Money paise={p.amount} className="font-bold" />
                     </Row>
@@ -157,11 +166,13 @@ const List = ({ children }: { children: ReactNode }) => (
 
 const Row = ({
   to,
+  room,
   title,
   sub,
   children,
 }: {
   to: string;
+  room: string;
   title: string;
   sub: string;
   children: ReactNode;
@@ -170,9 +181,10 @@ const Row = ({
     <Link
       to="/tenants/$tenantId"
       params={{ tenantId: to }}
-      className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-raised"
+      className="flex items-center gap-3 px-4 py-3 hover:bg-raised"
     >
-      <div className="min-w-0">
+      <RoomNo room={room} />
+      <div className="min-w-0 flex-1">
         <div className="truncate font-semibold">{title}</div>
         <div className="truncate text-xs text-white/50">{sub}</div>
       </div>

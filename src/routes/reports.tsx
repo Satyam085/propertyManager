@@ -54,7 +54,12 @@ function Reports() {
         }
       />
       <div className="grid grid-cols-3 gap-3">
-        <Stat label="Rent collected" value={<Money paise={income} />} tone="ok" />
+        <Stat
+          label="Rent collected"
+          value={<Money paise={income} />}
+          tone="ok"
+          hint="electricity excluded"
+        />
         <Stat label="Expenses" value={<Money paise={spent} />} />
         <Stat
           label="Net"

@@ -1,7 +1,21 @@
 // GET server functions: the only data-read API the UI uses. GET keeps them cacheable by the
 // service worker for offline reads. Handlers (and their *.server imports) never reach the client.
 import { createServerFn } from "@tanstack/react-start";
-import { and, asc, count, desc, eq, gte, isNotNull, isNull, like, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  isNull,
+  like,
+  lte,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import { addMonths, EXPENSE_CATEGORIES, thisMonth, today } from "#/lib/money";
 import {
@@ -11,7 +25,6 @@ import {
   files,
   payments,
   properties,
-  readings,
   tenants,
   units,
 } from "#/server/db.server";
@@ -33,7 +46,7 @@ export const getKpis = createServerFn({ method: "GET" }).handler(async () => {
     db
       .select({ v: sql<number>`coalesce(sum(amount),0)` })
       .from(charges)
-      .where(eq(charges.month, month)),
+      .where(and(eq(charges.month, month), ne(charges.type, "electricity"))),
     db
       .select({ v: sql<number>`coalesce(sum(amount),0)` })
       .from(payments)
@@ -46,6 +59,7 @@ export const getKpis = createServerFn({ method: "GET" }).handler(async () => {
     tenantsWithBalances(month).where(isNull(tenants.moveOut)),
   ]);
   const outstanding = rows.reduce((s, t) => s + Math.max(0, t.charged - t.paid), 0);
+  const elecDue = rows.reduce((s, t) => s + Math.max(0, t.elecBilled - t.elecPaid), 0);
   return {
     month,
     expected: expected.v,
@@ -53,7 +67,9 @@ export const getKpis = createServerFn({ method: "GET" }).handler(async () => {
     expenses: spent.v,
     net: collected.v - spent.v,
     outstanding,
-    occupied: rows.length,
+    elecDue,
+    tenants: rows.length,
+    occupied: new Set(rows.map((t) => t.unitId)).size,
     units: unitCount.v,
   };
 });
@@ -73,6 +89,7 @@ export const getEndingSoon = createServerFn({ method: "GET" }).handler(async () 
       id: tenants.id,
       name: tenants.name,
       agreementEnd: tenants.agreementEnd,
+      label: tenants.label,
       unitName: units.name,
       propertyName: properties.name,
     })
@@ -99,9 +116,12 @@ export const getRecentPayments = createServerFn({ method: "GET" }).handler(() =>
       method: payments.method,
       tenantId: tenants.id,
       tenantName: tenants.name,
+      label: tenants.label,
+      unitName: units.name,
     })
     .from(payments)
     .innerJoin(tenants, eq(tenants.id, payments.tenantId))
+    .innerJoin(units, eq(units.id, tenants.unitId))
     .orderBy(desc(payments.paidOn), desc(payments.createdAt))
     .limit(8),
 );
@@ -115,7 +135,7 @@ export const listProperties = createServerFn({ method: "GET" }).handler(() =>
       name: properties.name,
       address: properties.address,
       units: sql<number>`(select count(*) from units u where u.property_id = ${PROPERTY_ID})`,
-      occupied: sql<number>`(select count(*) from tenants t join units u on u.id = t.unit_id where u.property_id = ${PROPERTY_ID} and t.move_out is null)`,
+      occupied: sql<number>`(select count(distinct t.unit_id) from tenants t join units u on u.id = t.unit_id where u.property_id = ${PROPERTY_ID} and t.move_out is null)`,
       rent: sql<number>`coalesce((select sum(t.rent) from tenants t join units u on u.id = t.unit_id where u.property_id = ${PROPERTY_ID} and t.move_out is null), 0)`,
     })
     .from(properties)
@@ -148,10 +168,15 @@ export const getProperty = createServerFn({ method: "GET" })
         .where(and(eq(files.ownerType, "property"), eq(files.ownerId, data.id)))
         .orderBy(desc(files.createdAt)),
     ]);
-    const byUnit = new Map(active.map((t) => [t.unitId, withStatus(t)]));
+    const withState = active.map((t) => withStatus(t));
     return {
       property,
-      units: unitRows.map((u) => ({ ...u, tenant: byUnit.get(u.id) ?? null })),
+      units: unitRows.map((u) => ({
+        ...u,
+        tenants: withState
+          .filter((t) => t.unitId === u.id)
+          .sort((a, b) => a.label.localeCompare(b.label)),
+      })),
       expenses: recentExpenses,
       photos,
     };
@@ -172,7 +197,7 @@ export const listTenants = createServerFn({ method: "GET" })
             : undefined,
         ),
       )
-      .orderBy(asc(properties.name), asc(units.name));
+      .orderBy(asc(properties.name), asc(units.name), asc(tenants.label));
     return rows.map((t) => withStatus(t));
   });
 
@@ -182,7 +207,7 @@ export const getTenant = createServerFn({ method: "GET" })
     await ensureCharges();
     const [row] = await tenantsWithBalances().where(eq(tenants.id, data.id));
     if (!row) throw new Error("Tenant not found");
-    const [chargeRows, paymentRows, docs, meter] = await Promise.all([
+    const [chargeRows, paymentRows, docs] = await Promise.all([
       db
         .select()
         .from(charges)
@@ -198,20 +223,8 @@ export const getTenant = createServerFn({ method: "GET" })
         .from(files)
         .where(and(eq(files.ownerType, "tenant"), eq(files.ownerId, data.id)))
         .orderBy(desc(files.createdAt)),
-      db
-        .select()
-        .from(readings)
-        .where(eq(readings.unitId, row.unitId))
-        .orderBy(desc(readings.readOn))
-        .limit(6),
     ]);
-    return {
-      tenant: withStatus(row),
-      charges: chargeRows,
-      payments: paymentRows,
-      docs,
-      readings: meter,
-    };
+    return { tenant: withStatus(row), charges: chargeRows, payments: paymentRows, docs };
   });
 
 /** Everything the entry forms need to pick from: properties > units > active tenant. */
@@ -225,15 +238,13 @@ export const getPickers = createServerFn({ method: "GET" }).handler(async () => 
       unitRent: units.rent,
       tenantId: tenants.id,
       tenantName: tenants.name,
+      tenantLabel: tenants.label,
       tenantRent: tenants.rent,
-      lastReading: sql<
-        number | null
-      >`(select r.value from readings r where r.unit_id = ${units.id} order by r.read_on desc, r.created_at desc limit 1)`,
     })
     .from(properties)
     .leftJoin(units, eq(units.propertyId, properties.id))
     .leftJoin(tenants, and(eq(tenants.unitId, units.id), isNull(tenants.moveOut)))
-    .orderBy(asc(properties.name), asc(units.name));
+    .orderBy(asc(properties.name), asc(units.name), asc(tenants.label));
   return rows;
 });
 
@@ -256,7 +267,7 @@ export const getRentSheet = createServerFn({ method: "GET" })
           data.propertyId ? eq(units.propertyId, data.propertyId) : undefined,
         ),
       )
-      .orderBy(asc(properties.name), asc(units.name));
+      .orderBy(asc(properties.name), asc(units.name), asc(tenants.label));
     const all = rows.map((t) => withStatus(t));
     const shown = all.filter((t) =>
       data.status === "all" ? true : data.status === "paid" ? t.balance <= 0 : t.balance > 0,
@@ -267,6 +278,9 @@ export const getRentSheet = createServerFn({ method: "GET" })
         charged: all.reduce((s, t) => s + t.monthCharged, 0),
         paid: all.reduce((s, t) => s + t.monthPaid, 0),
         outstanding: all.reduce((s, t) => s + Math.max(0, t.balance), 0),
+        // pass-through, shown separately and never added to income
+        elecBilled: all.reduce((s, t) => s + t.monthElec, 0),
+        elecDue: all.reduce((s, t) => s + Math.max(0, t.elecDue), 0),
       },
     };
   });
@@ -352,14 +366,18 @@ export const getPropertyBreakdown = createServerFn({ method: "GET" })
       .orderBy(asc(properties.name));
   });
 
-// used by the tenant form's unit picker
-export const getVacantUnits = createServerFn({ method: "GET" }).handler(() =>
+/** Rooms for the new-tenant picker. A room can take several tenants (2325 A, 2325 B). */
+export const getRooms = createServerFn({ method: "GET" }).handler(() =>
   db
-    .select({ id: units.id, name: units.name, rent: units.rent, propertyName: properties.name })
+    .select({
+      id: units.id,
+      name: units.name,
+      rent: units.rent,
+      propertyName: properties.name,
+      taken: sql<string>`coalesce((select group_concat(t.label, ',') from tenants t where t.unit_id = ${units.id} and t.move_out is null), '')`,
+      active: sql<number>`(select count(*) from tenants t where t.unit_id = ${units.id} and t.move_out is null)`,
+    })
     .from(units)
     .innerJoin(properties, eq(properties.id, units.propertyId))
-    .where(
-      sql`not exists (select 1 from tenants t where t.unit_id = ${units.id} and t.move_out is null)`,
-    )
     .orderBy(asc(properties.name), asc(units.name)),
 );

@@ -1,15 +1,7 @@
 import "@tanstack/react-start/server-only";
-import { and, desc, eq, getTableColumns, isNull, lte, or, gte, sql } from "drizzle-orm";
-import {
-  addMonths,
-  chargeMonths,
-  electricityAmount,
-  isOverdue,
-  monthOf,
-  thisMonth,
-  today,
-} from "#/lib/money";
-import { charges, db, properties, readings, tenants, units } from "./db.server";
+import { and, eq, getTableColumns, isNull, lte, or, gte, sql } from "drizzle-orm";
+import { addMonths, chargeMonths, isOverdue, roomNo, thisMonth, today } from "#/lib/money";
+import { charges, db, properties, tenants, units } from "./db.server";
 
 /**
  * Raises rent + maintenance charges for every tenancy, for each month not yet raised up to now.
@@ -51,26 +43,42 @@ export async function ensureCharges(upTo = thisMonth()) {
 
 const sum = (q: ReturnType<typeof sql>) => sql<number>`coalesce((${q}), 0)`;
 
-/** Tenancies with ledger totals. `month` drives the month-specific columns. */
+/**
+ * Tenancies with ledger totals. Rent columns cover rent, maintenance and other charges.
+ * Electricity is a separate pass-through balance and never counts as income. `month` drives
+ * the month-specific columns.
+ */
 export function tenantsWithBalances(month = thisMonth()) {
+  const t = tenants.id;
   return db
     .select({
       ...getTableColumns(tenants),
       unitName: units.name,
       propertyId: units.propertyId,
       propertyName: properties.name,
-      charged: sum(sql`select sum(amount) from charges c where c.tenant_id = ${tenants.id}`),
+      charged: sum(
+        sql`select sum(amount) from charges c where c.tenant_id = ${t} and c.type != 'electricity'`,
+      ),
       paid: sum(
-        sql`select sum(amount) from payments p where p.tenant_id = ${tenants.id} and p.type = 'rent'`,
+        sql`select sum(amount) from payments p where p.tenant_id = ${t} and p.type = 'rent'`,
+      ),
+      elecBilled: sum(
+        sql`select sum(amount) from charges c where c.tenant_id = ${t} and c.type = 'electricity'`,
+      ),
+      elecPaid: sum(
+        sql`select sum(amount) from payments p where p.tenant_id = ${t} and p.type = 'electricity'`,
       ),
       depositHeld: sum(
-        sql`select sum(case p.type when 'deposit' then p.amount when 'refund' then -p.amount else 0 end) from payments p where p.tenant_id = ${tenants.id}`,
+        sql`select sum(case p.type when 'deposit' then p.amount when 'refund' then -p.amount else 0 end) from payments p where p.tenant_id = ${t}`,
       ),
       monthCharged: sum(
-        sql`select sum(amount) from charges c where c.tenant_id = ${tenants.id} and c.month = ${month}`,
+        sql`select sum(amount) from charges c where c.tenant_id = ${t} and c.month = ${month} and c.type != 'electricity'`,
       ),
       monthPaid: sum(
-        sql`select sum(amount) from payments p where p.tenant_id = ${tenants.id} and p.type = 'rent' and substr(p.paid_on, 1, 7) = ${month}`,
+        sql`select sum(amount) from payments p where p.tenant_id = ${t} and p.type = 'rent' and substr(p.paid_on, 1, 7) = ${month}`,
+      ),
+      monthElec: sum(
+        sql`select sum(amount) from charges c where c.tenant_id = ${t} and c.month = ${month} and c.type = 'electricity'`,
       ),
     })
     .from(tenants)
@@ -89,7 +97,13 @@ export const withStatus = (t: TenantRow, now = today()) => {
       : isOverdue(balance, t.monthCharged, t.dueDay, now)
         ? ("overdue" as const)
         : ("due" as const);
-  return { ...t, balance, status };
+  return {
+    ...t,
+    room: roomNo(t.unitName, t.label),
+    balance,
+    elecDue: t.elecBilled - t.elecPaid,
+    status,
+  };
 };
 
 /** Tenancies active at any point in `month`. */
@@ -98,59 +112,3 @@ export const activeIn = (month: string) =>
     lte(tenants.moveIn, `${month}-31`),
     or(isNull(tenants.moveOut), gte(tenants.moveOut, `${month}-01`)),
   );
-
-/**
- * Saves a meter reading and, if the unit has an active tenant with a rate, the electricity charge
- * for the units consumed since the previous reading. Idempotent on the client-generated id.
- */
-export async function saveReading(r: {
-  id: string;
-  unitId: string;
-  readOn: string;
-  value: number;
-}) {
-  const existing = await db.select({ id: readings.id }).from(readings).where(eq(readings.id, r.id));
-  if (existing.length) return { duplicate: true };
-
-  const [prev] = await db
-    .select()
-    .from(readings)
-    .where(and(eq(readings.unitId, r.unitId), lte(readings.readOn, r.readOn)))
-    .orderBy(desc(readings.readOn), desc(readings.createdAt))
-    .limit(1);
-  if (prev && r.value < prev.value) {
-    throw new Error(`Reading ${r.value} is lower than the previous ${prev.value} (${prev.readOn})`);
-  }
-
-  const [tenant] = await db
-    .select()
-    .from(tenants)
-    .where(
-      and(
-        eq(tenants.unitId, r.unitId),
-        lte(tenants.moveIn, r.readOn),
-        or(isNull(tenants.moveOut), gte(tenants.moveOut, r.readOn)),
-      ),
-    )
-    .limit(1);
-
-  const used = prev ? r.value - prev.value : 0;
-  const chargeId = prev && tenant && tenant.elecRate > 0 && used > 0 ? crypto.randomUUID() : null;
-  const stmts = [db.insert(readings).values({ ...r, chargeId })] as const;
-  if (chargeId && prev && tenant) {
-    await db.batch([
-      ...stmts,
-      db.insert(charges).values({
-        id: chargeId,
-        tenantId: tenant.id,
-        month: monthOf(r.readOn),
-        type: "electricity",
-        amount: electricityAmount(prev.value, r.value, tenant.elecRate),
-        note: `${prev.value} → ${r.value} (${used} kWh)`,
-      }),
-    ]);
-  } else {
-    await db.batch(stmts);
-  }
-  return { duplicate: false, used, charged: !!chargeId };
-}

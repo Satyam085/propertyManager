@@ -9,12 +9,24 @@ type Defaults = Partial<{
   rent: number;
   deposit: number;
   maintenance: number;
-  elecRate: number;
+  label: string;
   dueDay: number;
   notes: string;
 }>;
 
 const rupees = (paise?: number) => (paise ? paise / 100 : undefined);
+
+/** Room suffix: lets one room hold several tenants (2325 A, 2325 B). */
+export const SuffixField = ({ defaultValue }: { defaultValue?: string }) => (
+  <Field
+    label="Suffix (optional)"
+    name="label"
+    maxLength={10}
+    placeholder="A, B…"
+    defaultValue={defaultValue}
+    autoComplete="off"
+  />
+);
 
 /** Tenancy fields shared by the create and edit forms (amounts in ₹, sent as paise). */
 export function TenantFields({
@@ -72,7 +84,7 @@ export function TenantFields({
           defaultValue={d.dueDay ?? 5}
         />
       </div>
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 gap-6">
         <Field
           label="Deposit (₹)"
           name="deposit"
@@ -90,15 +102,6 @@ export function TenantFields({
           min="0"
           step="0.01"
           defaultValue={rupees(d.maintenance)}
-        />
-        <Field
-          label="Electricity ₹ / kWh"
-          name="elecRate"
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step="0.01"
-          defaultValue={rupees(d.elecRate)}
         />
       </div>
       <TextArea label="Notes" name="notes" maxLength={2000} defaultValue={d.notes} />

@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Tag } from "#/components/pop";
 import { flush, useOnline, useOutbox } from "#/lib/outbox";
 import appCss from "../styles.css?url";
@@ -46,7 +46,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         {children}
         {import.meta.env.DEV && (
           <TanStackDevtools
-            config={{ position: "bottom-left" }}
+            config={{ position: "middle-right" }}
             plugins={[{ name: "Tanstack Router", render: <TanStackRouterDevtoolsPanel /> }]}
           />
         )}
@@ -160,6 +160,15 @@ const LogoutButton = () => (
 );
 
 function MobileNav() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  // <details> owns its open state; React doesn't reliably write `open` back, so close it through
+  // the DOM and mirror it in `more` (via onToggle) only to show the tap-outside backdrop
+  const menu = useRef<HTMLDetailsElement>(null);
+  const [more, setMore] = useState(false);
+  const close = () => {
+    if (menu.current) menu.current.open = false;
+  };
+  useEffect(close, [path]); // close once a link navigates
   const tab =
     "flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-semibold text-white/50 data-[status=active]:text-white";
   return (
@@ -183,18 +192,39 @@ function MobileNav() {
       <Link to="/tenants" className={tab}>
         Tenants
       </Link>
-      <details className="relative flex flex-1">
-        <summary className={`${tab} cursor-pointer list-none`}>More</summary>
-        <div className="absolute right-2 bottom-full mb-2 flex w-44 flex-col border border-line bg-raised p-1">
-          {NAV.slice(3).map((n) => (
-            <Link key={n.to} to={n.to} className="px-3 py-2.5 text-sm font-semibold text-white/80">
+      {more && (
+        // tap outside closes the menu
+        <button
+          aria-label="Close menu"
+          className="fixed inset-0 -z-10 cursor-default"
+          onClick={close}
+        />
+      )}
+      <details
+        ref={menu}
+        className="relative flex flex-1"
+        onToggle={(e) => setMore(e.currentTarget.open)}
+      >
+        <summary
+          className={`${tab} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
+          aria-current={more || undefined}
+        >
+          More
+        </summary>
+        <div
+          className="plunk absolute right-3 bottom-full mb-3 flex w-48 flex-col border border-line bg-raised py-1"
+          style={{ "--edge-r": "#3d3d3d", "--edge-b": "#262626" } as React.CSSProperties}
+        >
+          {[...NAV.slice(3), { to: "/sync", label: "Sync queue" } as const].map((n) => (
+            <Link
+              key={n.to}
+              to={n.to}
+              className="px-4 py-3 text-sm font-semibold text-white/80 hover:bg-white/5 data-[status=active]:text-lime"
+            >
               {n.label}
             </Link>
           ))}
-          <Link to="/sync" className="px-3 py-2.5 text-sm font-semibold text-white/80">
-            Sync queue
-          </Link>
-          <div className="px-3 py-2.5">
+          <div className="mt-1 border-t border-line px-4 py-3">
             <LogoutButton />
           </div>
         </div>

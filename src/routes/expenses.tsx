@@ -129,7 +129,7 @@ function Expenses() {
                   </div>
                   <div className="truncate text-xs text-white/50">
                     {x.spentOn} · {x.propertyName}
-                    {x.unitName && ` · ${x.unitName}`}
+                    {x.unitName && ` · room ${x.unitName}`}
                   </div>
                 </div>
                 <Money paise={x.amount} className="font-bold" />

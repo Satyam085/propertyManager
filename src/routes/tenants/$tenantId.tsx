@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Files } from "#/components/Files";
-import { TenantFields } from "#/components/TenantFields";
+import { SuffixField, TenantFields } from "#/components/TenantFields";
 import {
   Button,
   Card,
@@ -10,6 +10,7 @@ import {
   Field,
   Money,
   PageHeader,
+  RoomNo,
   STATUS_TAG,
   Section,
   Stat,
@@ -21,7 +22,7 @@ import {
 } from "#/components/pop";
 import { getTenant } from "#/fns/read.functions";
 import { deleteEntry, moveOut, updateTenant } from "#/fns/write.functions";
-import { fmt, monthLabel, ordinal, today } from "#/lib/money";
+import { METHOD_LABEL, fmt, monthLabel, ordinal, today } from "#/lib/money";
 import { useOnline } from "#/lib/outbox";
 
 export const Route = createFileRoute("/tenants/$tenantId")({
@@ -47,11 +48,12 @@ function TenantPage() {
       <PageHeader
         kicker={
           <Link to="/properties/$propertyId" params={{ propertyId: t.propertyId }}>
-            {t.propertyName} · {t.unitName}
+            {t.propertyName}
           </Link>
         }
         title={
           <span className="flex flex-wrap items-center gap-3">
+            <RoomNo room={t.room} className="font-sans" />
             {t.name}
             {active ? (
               <Tag tone={STATUS_TAG[t.status]}>{t.status}</Tag>
@@ -68,6 +70,13 @@ function TenantPage() {
               {...buttonStyle({ tone: "mint", size: "sm" })}
             >
               Record payment
+            </Link>
+            <Link
+              to="/record"
+              search={{ tab: "electricity", tenantId: t.id }}
+              {...buttonStyle({ tone: "dark", size: "sm" })}
+            >
+              ⚡ Electricity bill
             </Link>
             <Link
               to="/record"
@@ -88,6 +97,12 @@ function TenantPage() {
           hint={t.balance < 0 ? `${fmt(-t.balance)} in advance` : undefined}
         />
         <Stat
+          label="Electricity due"
+          value={<Money paise={Math.max(0, t.elecDue)} />}
+          tone={t.elecDue > 0 ? "bad" : undefined}
+          hint="pass-through, not income"
+        />
+        <Stat
           label="Deposit held"
           value={<Money paise={t.depositHeld} />}
           hint={`agreed ${fmt(t.deposit)}`}
@@ -95,12 +110,7 @@ function TenantPage() {
         <Stat
           label="Rent"
           value={<Money paise={t.rent} />}
-          hint={`due on the ${ordinal(t.dueDay)}${t.maintenance ? ` · +${fmt(t.maintenance)} maint.` : ""}`}
-        />
-        <Stat
-          label="Since"
-          value={t.moveIn}
-          hint={t.agreementEnd ? `agreement till ${t.agreementEnd}` : "no agreement end set"}
+          hint={`due on the ${ordinal(t.dueDay)}${t.maintenance ? ` · +${fmt(t.maintenance)} maint.` : ""} · since ${t.moveIn}${t.agreementEnd ? ` · agreement till ${t.agreementEnd}` : ""}`}
         />
       </div>
 
@@ -110,36 +120,23 @@ function TenantPage() {
         <Statement data={data} online={online} />
       </Section>
 
-      <Section title="Deposit">
-        <Deposit data={data} online={online} />
-      </Section>
-
       <Section
-        title="Meter readings"
+        title="Electricity"
         actions={
           <Link
             to="/record"
-            search={{ tab: "reading" }}
+            search={{ tab: "electricity", tenantId: t.id }}
             className="text-xs font-semibold text-white/60 hover:text-white"
           >
-            ＋ Reading
+            ＋ Bill
           </Link>
         }
       >
-        {data.readings.length === 0 ? (
-          <Empty>
-            {t.elecRate ? "No readings yet" : "No electricity rate set for this tenant"}
-          </Empty>
-        ) : (
-          <ul className="divide-y divide-line border border-line bg-surface text-sm">
-            {data.readings.map((r) => (
-              <li key={r.id} className="flex justify-between px-4 py-2.5">
-                <span className="text-white/60">{r.readOn}</span>
-                <span className="font-semibold tabular-nums">{r.value} kWh</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <Electricity data={data} online={online} />
+      </Section>
+
+      <Section title="Deposit">
+        <Deposit data={data} online={online} />
       </Section>
 
       <Section title="Documents">
@@ -167,7 +164,8 @@ function TenantPage() {
 function Contact({ tenant: t }: { tenant: Data["tenant"] }) {
   const digits = t.phone.replace(/\D/g, "");
   const wa = digits.length === 10 ? `91${digits}` : digits;
-  const reminder = `Hi ${t.name}, a gentle reminder that ${fmt(t.balance)} is due for ${t.unitName}, ${t.propertyName}. Thank you!`;
+  const owed = Math.max(0, t.balance) + Math.max(0, t.elecDue);
+  const reminder = `Hi ${t.name}, a gentle reminder that ${fmt(owed)} is due for room ${t.room}, ${t.propertyName}${t.elecDue > 0 ? ` (incl. ${fmt(t.elecDue)} electricity)` : ""}. Thank you!`;
   if (!t.phone && !t.email) return null;
   return (
     <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
@@ -181,7 +179,7 @@ function Contact({ tenant: t }: { tenant: Data["tenant"] }) {
           ✉ {t.email}
         </a>
       )}
-      {digits && t.balance > 0 && (
+      {digits && owed > 0 && (
         <a
           href={`https://wa.me/${wa}?text=${encodeURIComponent(reminder)}`}
           target="_blank"
@@ -195,19 +193,21 @@ function Contact({ tenant: t }: { tenant: Data["tenant"] }) {
   );
 }
 
-/** Charges and rent payments merged, newest first, with the running balance after each line. */
+/** Rent-side charges and rent payments, newest first, with the running balance after each line. */
 function Statement({ data, online }: { data: Data; online: boolean }) {
   const { run, error, busy } = useAction();
   const lines = [
-    ...data.charges.map((c) => ({
-      id: c.id,
-      kind: "charge" as const,
-      date: `${c.month}-01`,
-      sort: `${c.month}-01 ${c.createdAt}`,
-      title: `${c.type} · ${monthLabel(c.month)}`,
-      note: c.note,
-      amount: c.amount,
-    })),
+    ...data.charges
+      .filter((c) => c.type !== "electricity")
+      .map((c) => ({
+        id: c.id,
+        kind: "charge" as const,
+        date: `${c.month}-01`,
+        sort: `${c.month}-01 ${c.createdAt}`,
+        title: `${c.type} · ${monthLabel(c.month)}`,
+        note: c.note,
+        amount: c.amount,
+      })),
     ...data.payments
       .filter((p) => p.type === "rent")
       .map((p) => ({
@@ -215,7 +215,7 @@ function Statement({ data, online }: { data: Data; online: boolean }) {
         kind: "payment" as const,
         date: p.paidOn,
         sort: `${p.paidOn} ${p.createdAt}`,
-        title: `Paid · ${p.method.toUpperCase()}`,
+        title: `Paid · ${METHOD_LABEL[p.method]}`,
         note: p.note,
         amount: -p.amount,
       })),
@@ -264,10 +264,76 @@ function Statement({ data, online }: { data: Data; online: boolean }) {
   );
 }
 
+/** Electricity bills and their settlements: a separate balance, never income. */
+function Electricity({ data, online }: { data: Data; online: boolean }) {
+  const { run, error, busy } = useAction();
+  const lines = [
+    ...data.charges
+      .filter((c) => c.type === "electricity")
+      .map((c) => ({
+        id: c.id,
+        kind: "charge" as const,
+        sort: `${c.month}-01 ${c.createdAt}`,
+        title: `Bill · ${monthLabel(c.month)}`,
+        sub: c.note,
+        amount: c.amount,
+      })),
+    ...data.payments
+      .filter((p) => p.type === "electricity")
+      .map((p) => ({
+        id: p.id,
+        kind: "payment" as const,
+        sort: `${p.paidOn} ${p.createdAt}`,
+        title:
+          p.method === "utility" ? "Paid to utility" : `Paid to you · ${METHOD_LABEL[p.method]}`,
+        sub: [p.paidOn, p.note].filter(Boolean).join(" · "),
+        amount: -p.amount,
+      })),
+  ].sort((a, b) => b.sort.localeCompare(a.sort));
+
+  if (lines.length === 0) return <Empty>No electricity bills yet</Empty>;
+  return (
+    <>
+      <ul className="divide-y divide-line border border-line bg-surface">
+        {lines.map((l) => (
+          <li key={l.id} className="flex items-center gap-3 px-4 py-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">{l.title}</div>
+              {l.sub && <div className="truncate text-xs text-white/40">{l.sub}</div>}
+            </div>
+            <Money
+              paise={Math.abs(l.amount)}
+              className={l.amount < 0 ? "font-bold text-mint" : "font-bold"}
+            />
+            <TextButton
+              aria-label={`Delete ${l.title}`}
+              disabled={!online || busy}
+              className="text-[11px]"
+              onClick={() =>
+                confirm(`Delete "${l.title}" (${fmt(Math.abs(l.amount))})?`) &&
+                run(() => deleteEntry({ data: { kind: l.kind, id: l.id } }))
+              }
+            >
+              ✕
+            </TextButton>
+          </li>
+        ))}
+      </ul>
+      {data.tenant.elecDue > 0 && (
+        <p className="mt-2 text-xs text-white/50">
+          {fmt(data.tenant.elecDue)} unpaid. When it's settled, record a payment for “Electricity
+          bill”.
+        </p>
+      )}
+      <ErrorText error={error} />
+    </>
+  );
+}
+
 function Deposit({ data, online }: { data: Data; online: boolean }) {
   const { run, error, busy } = useAction();
   const t = data.tenant;
-  const rows = data.payments.filter((p) => p.type !== "rent");
+  const rows = data.payments.filter((p) => p.type === "deposit" || p.type === "refund");
   const short = t.deposit - t.depositHeld;
   return (
     <>
@@ -288,7 +354,7 @@ function Deposit({ data, online }: { data: Data; online: boolean }) {
             <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
               <span className="flex-1">
                 <span className="text-white/50">{p.paidOn}</span> ·{" "}
-                {p.type === "deposit" ? "Received" : "Refunded"} · {p.method.toUpperCase()}
+                {p.type === "deposit" ? "Received" : "Refunded"} · {METHOD_LABEL[p.method]}
                 {p.note && <span className="text-white/50"> · {p.note}</span>}
               </span>
               <Money
@@ -328,6 +394,7 @@ function EditTenant({ tenant: t, onDone }: { tenant: Data["tenant"]; onDone: () 
             updateTenant({
               data: {
                 id: t.id,
+                label: v.str("label"),
                 name: v.str("name"),
                 phone: v.str("phone"),
                 email: v.str("email"),
@@ -335,7 +402,6 @@ function EditTenant({ tenant: t, onDone }: { tenant: Data["tenant"]; onDone: () 
                 rent: v.paise("rent"),
                 deposit: v.paise("deposit"),
                 maintenance: v.paise("maintenance"),
-                elecRate: v.paise("elecRate"),
                 dueDay: v.int("dueDay"),
                 notes: v.str("notes"),
               },
@@ -344,6 +410,9 @@ function EditTenant({ tenant: t, onDone }: { tenant: Data["tenant"]; onDone: () 
           if (ok) onDone();
         }}
       >
+        <div className="max-w-40">
+          <SuffixField defaultValue={t.label} />
+        </div>
         <TenantFields defaults={t} editing />
         <p className="-mt-2 text-xs text-white/40">
           A new rent amount applies from the next month raised; past charges stay as billed.
@@ -362,12 +431,13 @@ function EditTenant({ tenant: t, onDone }: { tenant: Data["tenant"]; onDone: () 
 function MoveOut({ tenant: t, online }: { tenant: Data["tenant"]; online: boolean }) {
   const { busy, error, run } = useAction();
   if (t.moveOut) {
-    const refund = t.depositHeld - Math.max(0, t.balance);
+    const dues = Math.max(0, t.balance) + Math.max(0, t.elecDue);
+    const refund = t.depositHeld - dues;
     return (
       <Card>
         <p className="text-sm text-white/70">
-          Moved out on <b>{t.moveOut}</b>. Deposit held {fmt(t.depositHeld)}, dues{" "}
-          {fmt(Math.max(0, t.balance))}:{" "}
+          Moved out on <b>{t.moveOut}</b>. Deposit held {fmt(t.depositHeld)}, dues {fmt(dues)}
+          {t.elecDue > 0 && ` (incl. ${fmt(t.elecDue)} electricity)`}:{" "}
           {refund >= 0 ? (
             <b className="text-mint">refund {fmt(refund)}</b>
           ) : (

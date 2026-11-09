@@ -97,6 +97,43 @@
   }
 }
 
+/* Native <select> in the NeoPop underline style. Options get explicit colours: they otherwise
+   inherit white text on a transparent background, which is white-on-white wherever the OS draws
+   the popup light (Firefox/GTK, Windows). */
+@utility pop-select {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  padding: 0 1.75rem 0.375rem 0;
+  border: 0;
+  border-bottom: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 0;
+  background: transparent
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffffffb3'/%3E%3C/svg%3E")
+    no-repeat right 2px center / 10px 6px;
+  color: rgb(255 255 255 / 0.9);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  outline: none;
+  &:focus {
+    border-bottom-color: #fff;
+  }
+  & option,
+  & optgroup {
+    background-color: var(--color-raised);
+    color: #fff;
+  }
+  & option:disabled {
+    color: rgb(255 255 255 / 0.4);
+  }
+}
+
 @utility caps {
   font-size: 10px;
   font-weight: 700;
