@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Files } from "#/components/Files";
-import { SuffixField, TenantFields } from "#/components/TenantFields";
+import { TenantFields } from "#/components/TenantFields";
 import {
   Button,
   Card,
@@ -394,7 +394,6 @@ function EditTenant({ tenant: t, onDone }: { tenant: Data["tenant"]; onDone: () 
             updateTenant({
               data: {
                 id: t.id,
-                label: v.str("label"),
                 name: v.str("name"),
                 phone: v.str("phone"),
                 email: v.str("email"),
@@ -410,9 +409,6 @@ function EditTenant({ tenant: t, onDone }: { tenant: Data["tenant"]; onDone: () 
           if (ok) onDone();
         }}
       >
-        <div className="max-w-40">
-          <SuffixField defaultValue={t.label} />
-        </div>
         <TenantFields defaults={t} editing />
         <p className="-mt-2 text-xs text-white/40">
           A new rent amount applies from the next month raised; past charges stay as billed.

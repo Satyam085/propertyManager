@@ -1,7 +1,7 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
-import { SuffixField, TenantFields } from "#/components/TenantFields";
+import { TenantFields } from "#/components/TenantFields";
 import {
   Button,
   Empty,
@@ -13,7 +13,7 @@ import {
 } from "#/components/pop";
 import { getRooms } from "#/fns/read.functions";
 import { createTenant } from "#/fns/write.functions";
-import { fmt, roomNo, today } from "#/lib/money";
+import { fmt, today } from "#/lib/money";
 import { useOnline } from "#/lib/outbox";
 
 export const Route = createFileRoute("/tenants/new")({
@@ -24,15 +24,6 @@ export const Route = createFileRoute("/tenants/new")({
   component: NewTenant,
 });
 
-type Room = Awaited<ReturnType<typeof getRooms>>[number];
-
-const takenSuffixes = (r?: Room) => (r && r.active > 0 ? r.taken.split(",") : []);
-/** First free letter for a shared room; empty when the room is free. */
-const nextSuffix = (taken: string[]) =>
-  taken.length === 0
-    ? ""
-    : ("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").find((c) => !taken.includes(c)) ?? "");
-
 function NewTenant() {
   const rooms = Route.useLoaderData();
   const search = Route.useSearch();
@@ -41,7 +32,6 @@ function NewTenant() {
   const online = useOnline();
   const { busy, error, run } = useAction();
   const room = rooms.find((r) => r.id === unitId);
-  const taken = takenSuffixes(room);
 
   if (rooms.length === 0) {
     return (
@@ -70,7 +60,6 @@ function NewTenant() {
             createTenant({
               data: {
                 unitId: v.str("unitId"),
-                label: v.str("label"),
                 name: v.str("name"),
                 phone: v.str("phone"),
                 email: v.str("email"),
@@ -87,38 +76,26 @@ function NewTenant() {
           if (out) void navigate({ to: "/tenants/$tenantId", params: { tenantId: out.id } });
         }}
       >
-        <div className="grid grid-cols-[1fr_8rem] gap-6">
-          <Select
-            label="Room no."
-            name="unitId"
-            required
-            value={unitId}
-            onChange={(e) => setUnitId(e.currentTarget.value)}
-          >
-            <option value="" disabled>
-              Choose a room
+        <Select
+          label="Room no."
+          name="unitId"
+          required
+          value={unitId}
+          onChange={(e) => setUnitId(e.currentTarget.value)}
+        >
+          <option value="" disabled>
+            Choose a room
+          </option>
+          {rooms.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name} · {r.propertyName}
+              {r.active ? ` · ${r.active} tenant${r.active > 1 ? "s" : ""}` : " · vacant"}
             </option>
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name} · {r.propertyName}
-                {r.active ? ` · ${r.active} tenant${r.active > 1 ? "s" : ""}` : " · vacant"}
-              </option>
-            ))}
-          </Select>
-          {/* keyed by room so the suggested suffix resets when the room changes */}
-          <SuffixField key={unitId} defaultValue={nextSuffix(taken)} />
-        </div>
-        {room && taken.length > 0 && (
-          <p className="-mt-3 text-xs text-white/50">
-            Room {room.name} has {taken.length} active tenant{taken.length > 1 ? "s" : ""}
-            {taken.some(Boolean) &&
-              ` (${taken
-                .filter(Boolean)
-                .map((l) => roomNo(room.name, l))
-                .join(", ")})`}
-            . Each tenant in a room needs a different suffix.
-            {taken.includes("") &&
-              " One of them has no suffix yet, so you may want to give them one from their page (e.g. A)."}
+          ))}
+        </Select>
+        {room && room.active > 0 && (
+          <p className="-mt-3 text-xs text-warn">
+            Room {room.name} already has {room.active} active tenant{room.active > 1 ? "s" : ""}.
           </p>
         )}
         <TenantFields defaults={{ moveIn: today(), rent: room?.rent || undefined }} />

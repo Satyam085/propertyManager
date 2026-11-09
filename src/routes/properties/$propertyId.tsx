@@ -145,9 +145,6 @@ function PropertyPage() {
                           params={{ tenantId: t.id }}
                           className="flex items-center gap-2 text-sm hover:text-white"
                         >
-                          <span className="w-20 shrink-0 font-bold whitespace-nowrap tabular-nums">
-                            {t.room}
-                          </span>
                           <span className="min-w-0 flex-1 truncate text-white/70">
                             {t.name} · <Money paise={t.rent} />
                             /mo
@@ -225,7 +222,7 @@ function AddUnit({ propertyId }: { propertyId: string }) {
         if (ok) form.reset();
       }}
     >
-      <Field label="New room no." name="name" required maxLength={60} placeholder="2325" />
+      <Field label="New room no." name="name" required maxLength={60} placeholder="2325 A" />
       <Field
         label="Asking rent (₹)"
         name="rent"

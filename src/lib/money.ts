@@ -88,7 +88,4 @@ export const FILE_OWNERS = ["property", "tenant", "expense", "payment"] as const
 export const ordinal = (n: number) =>
   `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
 
-/** Room no. as shown everywhere: room "2325" + suffix "A" → "2325 A". */
-export const roomNo = (room: string, label?: string | null) => (label ? `${room} ${label}` : room);
-
 export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

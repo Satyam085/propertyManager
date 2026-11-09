@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { addMonths, chargeMonths, fmt, isOverdue, today, ordinal, roomNo } from "./money";
+import { addMonths, chargeMonths, fmt, isOverdue, today, ordinal } from "./money";
 
 test("addMonths crosses years both ways", () => {
   expect(addMonths("2026-11", 2)).toBe("2027-01");
@@ -14,11 +14,6 @@ test("chargeMonths: move-out mid-month charges that month, on the 1st does not",
   expect(chargeMonths("2026-09-01", "2026-10-20", "2026-12")).toEqual(["2026-09", "2026-10"]);
   expect(chargeMonths("2026-09-01", "2026-11-01", "2026-12")).toEqual(["2026-09", "2026-10"]);
   expect(chargeMonths("2026-09-10", "2026-09-25", "2026-12")).toEqual(["2026-09"]);
-});
-
-test("room no. joins room and suffix", () => {
-  expect(roomNo("2325", "A")).toBe("2325 A");
-  expect(roomNo("2325", "")).toBe("2325");
 });
 
 test("overdue: arrears or past due day", () => {

@@ -55,18 +55,11 @@ export const tenants = sqliteTable(
     deposit: integer("deposit").notNull().default(0),
     maintenance: integer("maintenance").notNull().default(0),
     dueDay: integer("due_day").notNull().default(5),
-    // suffix inside the room: room "2325" + label "A" = "2325 A". Empty = the whole room.
-    label: text("label").notNull().default(""),
     notes: text("notes").notNull().default(""),
     createdAt: createdAt(),
   },
-  (t) => [
-    // a room can hold several active tenants, but each needs its own suffix
-    uniqueIndex("tenants_active_room_label")
-      .on(t.unitId, t.label)
-      .where(sql`${t.moveOut} IS NULL`),
-    check("tenants_due_day", sql`${t.dueDay} BETWEEN 1 AND 28`),
-  ],
+  // a room can hold more than one tenant; rooms carry their own number, e.g. "2325 A"
+  (t) => [check("tenants_due_day", sql`${t.dueDay} BETWEEN 1 AND 28`)],
 );
 
 export const charges = sqliteTable(

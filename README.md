@@ -45,7 +45,7 @@ vp run deploy
   - `/sync` uses `ssr: false` because its data lives only in localStorage.
 - **Ledger:** money is integer paise. Rent and maintenance charges are raised idempotently when the app loads, and a unique index stops duplicates. Rent balance = rent, maintenance and other charges − rent payments.
 - **Electricity:** bills are entered by amount each month (no meter readings). They have their own balance and are never counted as income, whether the tenant pays the utility directly or pays through you.
-- **Rooms:** a room (for example `2325`) can hold several tenants, each with a suffix (`2325 A`, `2325 B`). A partial unique index keeps active suffixes distinct within a room.
+- **Rooms:** each room has its own number, which can carry a letter (`2325 A`, `2325 B`). A room can hold more than one tenant.
 - **Offline:**
   - `public/sw.js` caches pages and GET server-function responses (network-first), plus assets and files (cache-first).
   - `src/lib/outbox.ts` queues payments, charges, readings and expenses made offline and replays them when you're back online. Client-generated IDs make a replay a no-op.

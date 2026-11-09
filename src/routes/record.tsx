@@ -21,7 +21,6 @@ import {
   cap,
   fmt,
   monthLabel,
-  roomNo,
   thisMonth,
   today,
 } from "#/lib/money";
@@ -150,7 +149,7 @@ function TenantSelect({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
       </option>
       {tenantsOf(rows).map((r) => (
         <option key={r.tenantId} value={r.tenantId!}>
-          {roomNo(r.unitName!, r.tenantLabel)} · {r.tenantName} · {r.propertyName}
+          {r.unitName} · {r.tenantName} · {r.propertyName}
         </option>
       ))}
     </Select>

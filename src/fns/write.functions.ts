@@ -85,24 +85,15 @@ const tenantFields = z.object({
   rent: zPaise.min(1),
   deposit: zPaise,
   maintenance: zPaise,
-  label: zText(10),
   dueDay: z.number().int().min(1).max(28),
   notes: zText(2000),
 });
-
-// the DB enforces one active tenant per (room, suffix)
-const SUFFIX_TAKEN =
-  "Another active tenant in this room already uses that suffix. Give each one its own (A, B…)";
 
 export const createTenant = createServerFn({ method: "POST" })
   .validator(tenantFields)
   .handler(async ({ data }) => {
     const id = crypto.randomUUID();
-    try {
-      await db.insert(tenants).values({ ...data, id });
-    } catch {
-      throw new Error(SUFFIX_TAKEN);
-    }
+    await db.insert(tenants).values({ ...data, id });
     return { id };
   });
 
@@ -111,22 +102,14 @@ export const updateTenant = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { id, ...rest } = data;
     // ponytail: rent changes apply to months raised from now on; past charges stay as billed
-    try {
-      await db.update(tenants).set(rest).where(eq(tenants.id, id));
-    } catch {
-      throw new Error(SUFFIX_TAKEN);
-    }
+    await db.update(tenants).set(rest).where(eq(tenants.id, id));
     return ok;
   });
 
 export const moveOut = createServerFn({ method: "POST" })
   .validator(z.object({ id: zId, moveOut: zDate.nullable() }))
   .handler(async ({ data }) => {
-    try {
-      await db.update(tenants).set({ moveOut: data.moveOut }).where(eq(tenants.id, data.id));
-    } catch {
-      throw new Error(SUFFIX_TAKEN);
-    }
+    await db.update(tenants).set({ moveOut: data.moveOut }).where(eq(tenants.id, data.id));
     return ok;
   });
 

@@ -89,7 +89,6 @@ export const getEndingSoon = createServerFn({ method: "GET" }).handler(async () 
       id: tenants.id,
       name: tenants.name,
       agreementEnd: tenants.agreementEnd,
-      label: tenants.label,
       unitName: units.name,
       propertyName: properties.name,
     })
@@ -116,7 +115,6 @@ export const getRecentPayments = createServerFn({ method: "GET" }).handler(() =>
       method: payments.method,
       tenantId: tenants.id,
       tenantName: tenants.name,
-      label: tenants.label,
       unitName: units.name,
     })
     .from(payments)
@@ -175,7 +173,7 @@ export const getProperty = createServerFn({ method: "GET" })
         ...u,
         tenants: withState
           .filter((t) => t.unitId === u.id)
-          .sort((a, b) => a.label.localeCompare(b.label)),
+          .sort((a, b) => a.name.localeCompare(b.name)),
       })),
       expenses: recentExpenses,
       photos,
@@ -197,7 +195,7 @@ export const listTenants = createServerFn({ method: "GET" })
             : undefined,
         ),
       )
-      .orderBy(asc(properties.name), asc(units.name), asc(tenants.label));
+      .orderBy(asc(properties.name), asc(units.name), asc(tenants.name));
     return rows.map((t) => withStatus(t));
   });
 
@@ -238,13 +236,12 @@ export const getPickers = createServerFn({ method: "GET" }).handler(async () => 
       unitRent: units.rent,
       tenantId: tenants.id,
       tenantName: tenants.name,
-      tenantLabel: tenants.label,
       tenantRent: tenants.rent,
     })
     .from(properties)
     .leftJoin(units, eq(units.propertyId, properties.id))
     .leftJoin(tenants, and(eq(tenants.unitId, units.id), isNull(tenants.moveOut)))
-    .orderBy(asc(properties.name), asc(units.name), asc(tenants.label));
+    .orderBy(asc(properties.name), asc(units.name), asc(tenants.name));
   return rows;
 });
 
@@ -267,7 +264,7 @@ export const getRentSheet = createServerFn({ method: "GET" })
           data.propertyId ? eq(units.propertyId, data.propertyId) : undefined,
         ),
       )
-      .orderBy(asc(properties.name), asc(units.name), asc(tenants.label));
+      .orderBy(asc(properties.name), asc(units.name), asc(tenants.name));
     const all = rows.map((t) => withStatus(t));
     const shown = all.filter((t) =>
       data.status === "all" ? true : data.status === "paid" ? t.balance <= 0 : t.balance > 0,
@@ -366,7 +363,7 @@ export const getPropertyBreakdown = createServerFn({ method: "GET" })
       .orderBy(asc(properties.name));
   });
 
-/** Rooms for the new-tenant picker. A room can take several tenants (2325 A, 2325 B). */
+/** Rooms for the new-tenant picker, with how many active tenants each already has. */
 export const getRooms = createServerFn({ method: "GET" }).handler(() =>
   db
     .select({
@@ -374,7 +371,6 @@ export const getRooms = createServerFn({ method: "GET" }).handler(() =>
       name: units.name,
       rent: units.rent,
       propertyName: properties.name,
-      taken: sql<string>`coalesce((select group_concat(t.label, ',') from tenants t where t.unit_id = ${units.id} and t.move_out is null), '')`,
       active: sql<number>`(select count(*) from tenants t where t.unit_id = ${units.id} and t.move_out is null)`,
     })
     .from(units)

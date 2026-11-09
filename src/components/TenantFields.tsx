@@ -9,24 +9,11 @@ type Defaults = Partial<{
   rent: number;
   deposit: number;
   maintenance: number;
-  label: string;
   dueDay: number;
   notes: string;
 }>;
 
 const rupees = (paise?: number) => (paise ? paise / 100 : undefined);
-
-/** Room suffix: lets one room hold several tenants (2325 A, 2325 B). */
-export const SuffixField = ({ defaultValue }: { defaultValue?: string }) => (
-  <Field
-    label="Suffix (optional)"
-    name="label"
-    maxLength={10}
-    placeholder="A, B…"
-    defaultValue={defaultValue}
-    autoComplete="off"
-  />
-);
 
 /** Tenancy fields shared by the create and edit forms (amounts in ₹, sent as paise). */
 export function TenantFields({

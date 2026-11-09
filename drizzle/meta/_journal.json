@@ -15,6 +15,13 @@
       "when": 1794242418760,
       "tag": "0001_rooms_and_electricity_bills",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794245129861,
+      "tag": "0002_drop_tenant_suffix",
+      "breakpoints": true
     }
   ]
 }
