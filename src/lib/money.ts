@@ -73,6 +73,8 @@ export const METHOD_LABEL: Record<(typeof PAYMENT_METHODS)[number], string> = {
   cheque: "Cheque",
   utility: "Paid to utility directly",
 };
+// an electricity bill is settled either straight to the utility, or to you in cash/UPI only
+export const ELECTRICITY_METHODS = ["cash", "upi", "utility"] as const;
 export const EXPENSE_CATEGORIES = [
   "maintenance",
   "repair",

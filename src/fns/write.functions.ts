@@ -3,7 +3,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { CHARGE_TYPES, EXPENSE_CATEGORIES, PAYMENT_METHODS, PAYMENT_TYPES } from "#/lib/money";
+import {
+  CHARGE_TYPES,
+  ELECTRICITY_METHODS,
+  EXPENSE_CATEGORIES,
+  PAYMENT_METHODS,
+  PAYMENT_TYPES,
+} from "#/lib/money";
 import { charges, db, expenses, payments, properties, tenants, units } from "#/server/db.server";
 import { removeFile, storeFile } from "#/server/files.server";
 
@@ -138,10 +144,16 @@ export const recordPayment = createServerFn({ method: "POST" })
         method: z.enum(PAYMENT_METHODS),
         note: zText(300),
       })
-      .refine((p) => p.method !== "utility" || p.type === "electricity", {
-        message: "Only electricity bills can be paid to the utility directly",
-        path: ["method"],
-      }),
+      .refine(
+        (p) =>
+          p.type === "electricity"
+            ? (ELECTRICITY_METHODS as readonly string[]).includes(p.method)
+            : p.method !== "utility",
+        {
+          message: "Electricity is paid to the utility directly, or to you in cash or UPI",
+          path: ["method"],
+        },
+      ),
   )
   .handler(async ({ data }) => {
     await db.insert(payments).values(data).onConflictDoNothing({ target: payments.id });
@@ -203,7 +215,9 @@ export const addElectricityBill = createServerFn({ method: "POST" })
       month: zMonth,
       amount: zPaise.min(1),
       note: zText(300),
-      payment: z.object({ id: zUuid, paidOn: zDate, method: z.enum(PAYMENT_METHODS) }).nullable(),
+      payment: z
+        .object({ id: zUuid, paidOn: zDate, method: z.enum(ELECTRICITY_METHODS) })
+        .nullable(),
     }),
   )
   .handler(async ({ data }) => {

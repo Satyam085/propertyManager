@@ -13,6 +13,7 @@ import {
 } from "#/components/pop";
 import { getPickers } from "#/fns/read.functions";
 import {
+  ELECTRICITY_METHODS,
   EXPENSE_CATEGORIES,
   METHOD_LABEL,
   PAYMENT_METHODS,
@@ -207,8 +208,16 @@ function PaymentForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
       />
       <div className="grid grid-cols-2 gap-6">
         <Field label="Paid on" name="paidOn" type="date" defaultValue={today()} required />
-        <Select label="Method" name="method" defaultValue="upi" key={type}>
-          {PAYMENT_METHODS.filter((m) => m !== "utility" || type === "electricity").map((m) => (
+        <Select
+          label="Method"
+          name="method"
+          defaultValue={type === "electricity" ? "cash" : "upi"}
+          key={type}
+        >
+          {(type === "electricity"
+            ? ELECTRICITY_METHODS
+            : PAYMENT_METHODS.filter((m) => m !== "utility")
+          ).map((m) => (
             <option key={m} value={m}>
               {METHOD_LABEL[m]}
             </option>
@@ -222,7 +231,7 @@ function PaymentForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
 
 /** Electricity bill, entered by amount when it arrives. Optionally settled in the same step. */
 function ElectricityForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
-  const [paid, setPaid] = useState<"" | Method>("");
+  const [paid, setPaid] = useState<"" | (typeof ELECTRICITY_METHODS)[number]>("");
   return (
     <EntryForm
       kind="addElectricityBill"
@@ -265,7 +274,7 @@ function ElectricityForm({ rows, tenantId }: { rows: Pick[]; tenantId?: string }
         >
           <option value="">Not yet</option>
           <option value="utility">Tenant paid utility directly</option>
-          {PAYMENT_METHODS.filter((m) => m !== "utility").map((m) => (
+          {ELECTRICITY_METHODS.filter((m) => m !== "utility").map((m) => (
             <option key={m} value={m}>
               Paid to me · {METHOD_LABEL[m]}
             </option>
