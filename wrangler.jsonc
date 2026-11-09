@@ -5,12 +5,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server.ts",
   "observability": { "enabled": true },
+  // the app reads env.DB and env.FILES; don't let `wrangler d1/r2 create` add second bindings
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "property-manager",
-      // replace with the id printed by `wrangler d1 create property-manager` before deploying
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "a17eee5f-5eeb-4d59-b5a9-706891d30e41",
       "migrations_dir": "drizzle",
     },
   ],
