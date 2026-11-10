@@ -1,6 +1,6 @@
 import "@tanstack/react-start/server-only";
 import { and, eq, getTableColumns, isNull, lte, or, gte, sql } from "drizzle-orm";
-import { addMonths, chargeMonths, isOverdue, thisMonth, today } from "#/lib/money";
+import { addMonths, chargeMonths, isOverdue, roomLabel, thisMonth, today } from "#/lib/money";
 import { charges, db, properties, tenants, units } from "./db.server";
 
 /**
@@ -99,7 +99,7 @@ export const withStatus = (t: TenantRow, now = today()) => {
         : ("due" as const);
   return {
     ...t,
-    room: t.unitName,
+    room: roomLabel(t.propertyName, t.unitName),
     balance,
     elecDue: t.elecBilled - t.elecPaid,
     status,

@@ -84,9 +84,7 @@ function Tenants() {
                 <RoomNo room={t.room} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold">{t.name}</div>
-                  <div className="truncate text-xs text-white/50">
-                    {t.propertyName} · {t.phone || "no phone"}
-                  </div>
+                  <div className="truncate text-xs text-white/50">{t.phone || "no phone"}</div>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   <span className="font-bold">

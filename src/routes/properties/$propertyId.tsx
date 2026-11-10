@@ -20,6 +20,7 @@ import {
 } from "#/components/pop";
 import { getProperty } from "#/fns/read.functions";
 import { deleteProperty, deleteUnit, saveProperty, saveUnit } from "#/fns/write.functions";
+import { roomLabel } from "#/lib/money";
 import { useOnline } from "#/lib/outbox";
 
 export const Route = createFileRoute("/properties/$propertyId")({
@@ -106,7 +107,7 @@ function PropertyPage() {
             {units.map((u) => (
               <li key={u.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <RoomNo room={u.name} />
+                  <RoomNo room={roomLabel(property.name, u.name)} />
                   <div className="min-w-0 flex-1 text-sm text-white/50">
                     {u.tenants.length === 0 ? (
                       <>
@@ -128,7 +129,7 @@ function PropertyPage() {
                       disabled={!online}
                       className="text-[11px]"
                       onClick={() =>
-                        confirm(`Delete room ${u.name}?`) &&
+                        confirm(`Delete room ${roomLabel(property.name, u.name)}?`) &&
                         run(() => deleteUnit({ data: { id: u.id } }))
                       }
                     >

@@ -165,7 +165,7 @@ function Contact({ tenant: t }: { tenant: Data["tenant"] }) {
   const digits = t.phone.replace(/\D/g, "");
   const wa = digits.length === 10 ? `91${digits}` : digits;
   const owed = Math.max(0, t.balance) + Math.max(0, t.elecDue);
-  const reminder = `Hi ${t.name}, a gentle reminder that ${fmt(owed)} is due for room ${t.room}, ${t.propertyName}${t.elecDue > 0 ? ` (incl. ${fmt(t.elecDue)} electricity)` : ""}. Thank you!`;
+  const reminder = `Hi ${t.name}, a gentle reminder that ${fmt(owed)} is due for room ${t.room}${t.elecDue > 0 ? ` (incl. ${fmt(t.elecDue)} electricity)` : ""}. Thank you!`;
   if (!t.phone && !t.email) return null;
   return (
     <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">

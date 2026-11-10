@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { addMonths, chargeMonths, fmt, isOverdue, today, ordinal } from "./money";
+import { addMonths, chargeMonths, fmt, isOverdue, today, ordinal, roomLabel } from "./money";
 
 test("addMonths crosses years both ways", () => {
   expect(addMonths("2026-11", 2)).toBe("2027-01");
@@ -33,4 +33,10 @@ test("ordinal suffixes", () => {
   expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 28].map(ordinal).join(" ")).toBe(
     "1st 2nd 3rd 4th 11th 12th 13th 21st 22nd 28th",
   );
+});
+
+test("room label is building + room, without doubling", () => {
+  expect(roomLabel("2353", "A")).toBe("2353 A");
+  expect(roomLabel("1871+1872", "F")).toBe("1871+1872 F");
+  expect(roomLabel("2353", "2353 A")).toBe("2353 A");
 });

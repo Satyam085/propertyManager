@@ -89,3 +89,8 @@ export const ordinal = (n: number) =>
   `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
 
 export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Room label shown everywhere: building + room, "2353" + "A" → "2353 A".
+ *  A room already named with its building ("2353 A") isn't doubled up. */
+export const roomLabel = (building: string, room: string) =>
+  room.startsWith(building) ? room : `${building} ${room}`;

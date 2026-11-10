@@ -13,7 +13,7 @@ import {
 } from "#/components/pop";
 import { getRooms } from "#/fns/read.functions";
 import { createTenant } from "#/fns/write.functions";
-import { fmt, today } from "#/lib/money";
+import { fmt, roomLabel, today } from "#/lib/money";
 import { useOnline } from "#/lib/outbox";
 
 export const Route = createFileRoute("/tenants/new")({
@@ -88,14 +88,15 @@ function NewTenant() {
           </option>
           {rooms.map((r) => (
             <option key={r.id} value={r.id}>
-              {r.name} · {r.propertyName}
+              {roomLabel(r.propertyName, r.name)}
               {r.active ? ` · ${r.active} tenant${r.active > 1 ? "s" : ""}` : " · vacant"}
             </option>
           ))}
         </Select>
         {room && room.active > 0 && (
           <p className="-mt-3 text-xs text-warn">
-            Room {room.name} already has {room.active} active tenant{room.active > 1 ? "s" : ""}.
+            Room {roomLabel(room.propertyName, room.name)} already has {room.active} active tenant
+            {room.active > 1 ? "s" : ""}.
           </p>
         )}
         <TenantFields defaults={{ moveIn: today(), rent: room?.rent || undefined }} />

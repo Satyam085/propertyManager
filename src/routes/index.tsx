@@ -2,7 +2,7 @@ import { Await, Link, createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Card, Empty, Money, PageHeader, RoomNo, Section, Stat, Tag } from "#/components/pop";
 import { getEndingSoon, getKpis, getOverdue, getRecentPayments } from "#/fns/read.functions";
-import { METHOD_LABEL, fmt, monthLabel, ordinal, today } from "#/lib/money";
+import { METHOD_LABEL, fmt, monthLabel, ordinal, roomLabel, today } from "#/lib/money";
 
 // Full SSR + streaming: KPIs are awaited (one cheap round of aggregates) so the first byte has
 // the numbers; the lists are returned as un-awaited promises and stream in via <Await>.
@@ -96,7 +96,7 @@ function Dashboard() {
                     to={t.id}
                     room={t.room}
                     title={t.name}
-                    sub={`${t.propertyName} · due on the ${ordinal(t.dueDay)}`}
+                    sub={`due on the ${ordinal(t.dueDay)}`}
                   >
                     <Money paise={t.balance} className="font-bold text-pink" />
                   </Row>
@@ -116,7 +116,13 @@ function Dashboard() {
               ) : (
                 <List>
                   {rows.map((t) => (
-                    <Row key={t.id} to={t.id} room={t.unitName} title={t.name} sub={t.propertyName}>
+                    <Row
+                      key={t.id}
+                      to={t.id}
+                      room={roomLabel(t.propertyName, t.unitName)}
+                      title={t.name}
+                      sub={t.agreementEnd! < today() ? "agreement expired" : "agreement ending"}
+                    >
                       <Tag tone={t.agreementEnd! < today() ? "bad" : "warn"}>{t.agreementEnd}</Tag>
                     </Row>
                   ))}
@@ -137,7 +143,7 @@ function Dashboard() {
                     <Row
                       key={p.id}
                       to={p.tenantId}
-                      room={p.unitName}
+                      room={roomLabel(p.propertyName, p.unitName)}
                       title={p.tenantName}
                       sub={`${p.paidOn} · ${METHOD_LABEL[p.method]}${p.type === "rent" ? "" : p.type === "electricity" ? " · ⚡ electricity, not income" : ` · ${p.type}`}`}
                     >

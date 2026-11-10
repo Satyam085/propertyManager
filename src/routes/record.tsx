@@ -21,6 +21,7 @@ import {
   cap,
   fmt,
   monthLabel,
+  roomLabel,
   thisMonth,
   today,
 } from "#/lib/money";
@@ -149,7 +150,7 @@ function TenantSelect({ rows, tenantId }: { rows: Pick[]; tenantId?: string }) {
       </option>
       {tenantsOf(rows).map((r) => (
         <option key={r.tenantId} value={r.tenantId!}>
-          {r.unitName} · {r.tenantName} · {r.propertyName}
+          {roomLabel(r.propertyName, r.unitName!)} · {r.tenantName}
         </option>
       ))}
     </Select>
@@ -384,7 +385,7 @@ function ExpenseForm({ rows }: { rows: Pick[] }) {
             .filter((r) => r.propertyId === propertyId)
             .map((r) => (
               <option key={r.unitId} value={r.unitId!}>
-                {r.unitName}
+                {roomLabel(r.propertyName, r.unitName!)}
               </option>
             ))}
         </Select>

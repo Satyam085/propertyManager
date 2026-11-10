@@ -116,10 +116,12 @@ export const getRecentPayments = createServerFn({ method: "GET" }).handler(() =>
       tenantId: tenants.id,
       tenantName: tenants.name,
       unitName: units.name,
+      propertyName: properties.name,
     })
     .from(payments)
     .innerJoin(tenants, eq(tenants.id, payments.tenantId))
     .innerJoin(units, eq(units.id, tenants.unitId))
+    .innerJoin(properties, eq(properties.id, units.propertyId))
     .orderBy(desc(payments.paidOn), desc(payments.createdAt))
     .limit(8),
 );

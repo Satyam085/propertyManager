@@ -125,8 +125,7 @@ function RentSheet() {
                 >
                   <div className="truncate font-semibold">{t.name}</div>
                   <div className="truncate text-xs text-white/50">
-                    {t.propertyName} · billed <Money paise={t.monthCharged} /> · paid{" "}
-                    <Money paise={t.monthPaid} />
+                    billed <Money paise={t.monthCharged} /> · paid <Money paise={t.monthPaid} />
                   </div>
                   {(t.monthElec > 0 || t.elecDue > 0) && (
                     <div className="truncate text-xs text-white/50">

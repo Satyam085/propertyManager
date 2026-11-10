@@ -13,7 +13,7 @@ import {
 } from "#/components/pop";
 import { listExpenses, listProperties, zMonth } from "#/fns/read.functions";
 import { deleteEntry } from "#/fns/write.functions";
-import { EXPENSE_CATEGORIES, addMonths, monthLabel, thisMonth } from "#/lib/money";
+import { EXPENSE_CATEGORIES, addMonths, roomLabel, monthLabel, thisMonth } from "#/lib/money";
 import { useOnline } from "#/lib/outbox";
 
 export const Route = createFileRoute("/expenses")({
@@ -128,8 +128,8 @@ function Expenses() {
                     )}
                   </div>
                   <div className="truncate text-xs text-white/50">
-                    {x.spentOn} · {x.propertyName}
-                    {x.unitName && ` · room ${x.unitName}`}
+                    {x.spentOn} ·{" "}
+                    {x.unitName ? `room ${roomLabel(x.propertyName, x.unitName)}` : x.propertyName}
                   </div>
                 </div>
                 <Money paise={x.amount} className="font-bold" />
